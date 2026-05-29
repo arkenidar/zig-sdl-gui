@@ -1,0 +1,2 @@
+# Vendored third-party debugger core — never reformat (keep diffable vs upstream).
+scripts/LuaPanda.lua

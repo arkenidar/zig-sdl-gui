@@ -1,0 +1,7 @@
+# Lua formatting (pre-commit gate; see .githooks/pre-commit). 2-space indent to
+# match the project's hand style; single-line `if … then … end` kept; the vendored
+# debugger is excluded via .styluaignore.
+indent_type = "Spaces"
+indent_width = 2
+call_parentheses = "NoSingleTable"
+collapse_simple_statement = "ConditionalOnly"

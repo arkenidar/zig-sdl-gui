@@ -24,6 +24,23 @@ if [ -n "$staged_zig" ]; then
   echo "pre-commit: zig fmt applied to staged .zig files"
 fi
 
+# 1b) autoformat staged .lua files with stylua (vendored LuaPanda.lua excluded by
+#     name — stylua ignores .styluaignore when a file is passed explicitly).
+STYLUA="$(command -v stylua 2>/dev/null || true)"
+if [ -z "$STYLUA" ] && [ -x "$HOME/.local/bin/stylua" ]; then STYLUA="$HOME/.local/bin/stylua"; fi
+staged_lua=$(git diff --cached --name-only --diff-filter=ACM -- '*.lua' | grep -v '^scripts/LuaPanda\.lua$' || true)
+if [ -n "$staged_lua" ]; then
+  if [ -n "$STYLUA" ]; then
+    printf '%s\n' "$staged_lua" | while IFS= read -r f; do
+      [ -f "$f" ] || continue
+      "$STYLUA" "$f" && git add -- "$f"
+    done
+    echo "pre-commit: stylua applied to staged .lua files"
+  else
+    echo "pre-commit: WARNING 'stylua' not found (PATH or ~/.local/bin) — skipping Lua autoformat" >&2
+  fi
+fi
+
 # 2) check: build then run unit tests; block on failure.
 log=$(mktemp)
 echo "pre-commit: zig build ..."
