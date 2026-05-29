@@ -67,12 +67,50 @@ Config is read via `SDL_getenv` (the std args API is mid-rework in this Zig dev 
 | `ZIGUI_NATIVE` | If set, use the built-in native demo instead of Lua          |
 | `ZIGUI_FRAMES` | Render N frames then quit (for headless/CI; 0 = run forever)  |
 | `ZIGUI_SHOT`   | Save a BMP screenshot of the last frame                       |
+| `ZIGUI_LUA_DEBUG` | If set, attach to a local LuaPanda session (`127.0.0.1:8818`) — see [Debugging](#debugging) |
 
 Example headless smoke test:
 
 ```sh
 ZIGUI_FRAMES=8 ZIGUI_SHOT=/tmp/shot.bmp ./zig-out/bin/zigui
 ```
+
+## Debugging
+
+Two independent debuggers — use either alone or both in the same run.
+
+### Native (Zig) — gdb
+
+`zig build` is a Debug build with symbols. In VS Code (with the C/C++ extension,
+`ms-vscode.cpptools`) pick **Debug zigui (gdb)**: it builds, launches `zig-out/bin/zigui`
+under gdb, and stops at breakpoints in `src/*.zig`. Equivalent from a terminal:
+
+```sh
+gdb --args zig-out/bin/zigui
+```
+
+### Lua (`scripts/app.lua`) — LuaPanda over a local socket
+
+Real breakpoints/stepping in your live-edited Lua via the **LuaPanda** extension
+(`stuartwang.luapanda`). The debugger core is vendored at `scripts/LuaPanda.lua`, and the
+connection rides LuaSocket (a system package here) over `127.0.0.1` loopback — no networking
+code in the app.
+
+1. Install the LuaPanda VS Code extension.
+2. Start the **Lua: LuaPanda (listen 8818)** debug session **first** — VS Code listens on 8818.
+3. Run the app with the opt-in flag so it connects out:
+
+   ```sh
+   ZIGUI_LUA_DEBUG=1 zig build run
+   ```
+
+4. Set breakpoints in `scripts/app.lua`; interacting with the window hits them. Since `frame()`
+   runs synchronously, the window pauses while you're stopped and resumes on continue.
+   Hot-reload still works while debugging.
+
+If no listener is up, `ZIGUI_LUA_DEBUG=1` is a quiet no-op and the app runs normally. Loopback
+only by design (remote/umbilical debugging is a later phase); stepping through Lua *tail calls*
+under LuaJIT can be imperfect — a known LuaPanda limitation.
 
 ## Writing UI (Lua)
 

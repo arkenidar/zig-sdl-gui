@@ -7,6 +7,7 @@
 //!   ZIGUI_FONT=PATH    TTF to use (default: DejaVuSans)
 //!   ZIGUI_FRAMES=N     render N frames then quit (0/unset = run until closed)
 //!   ZIGUI_SHOT=PATH    save a BMP screenshot of the last frame (headless verify)
+//!   ZIGUI_LUA_DEBUG    if set, attach to a local LuaPanda session (127.0.0.1:8818)
 const std = @import("std");
 const c = @import("sdl.zig").c;
 const core = @import("ui/core.zig");
@@ -55,6 +56,7 @@ pub fn main() !void {
     const font_z: [*:0]const u8 = envZ("ZIGUI_FONT") orelse default_font;
     const script_z: [*:0]const u8 = envZ("ZIGUI_SCRIPT") orelse default_script;
     const use_native = envZ("ZIGUI_NATIVE") != null;
+    const lua_debug = envZ("ZIGUI_LUA_DEBUG") != null;
     var max_frames: u64 = 0;
     if (envZ("ZIGUI_FRAMES")) |f| max_frames = std.fmt.parseInt(u64, std.mem.span(f), 10) catch 0;
     const shot_z: ?[*:0]const u8 = envZ("ZIGUI_SHOT");
@@ -77,6 +79,9 @@ pub fn main() !void {
         break :blk null;
     });
     defer if (script) |*s| s.deinit();
+
+    // ZIGUI_LUA_DEBUG: attach to a local LuaPanda session (start it in VS Code first).
+    if (lua_debug) if (script) |*s| s.enableDebugger();
 
     var events: std.ArrayList(InputEvent) = .empty;
     defer events.deinit(gpa);

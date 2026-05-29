@@ -1,0 +1,38 @@
+#!/bin/sh
+# Pre-commit gate for zig-sdl: autoformat (zig fmt) staged Zig files, then check
+# (compile + unit tests). A failed check blocks the commit.
+#
+# Enabled via:  git config core.hooksPath .githooks
+# (Lua files are formatted by the editor's Lua tooling, not here — there's no
+#  bundled CLI Lua formatter; this hook only handles Zig + the build/test check.)
+
+# Resolve zig: GUI git clients (and VS Code) often lack ~/apps/zig on PATH.
+ZIG="$(command -v zig 2>/dev/null || true)"
+if [ -z "$ZIG" ] && [ -x "$HOME/apps/zig/zig" ]; then ZIG="$HOME/apps/zig/zig"; fi
+if [ -z "$ZIG" ]; then
+  echo "pre-commit: 'zig' not found on PATH or at ~/apps/zig — aborting commit." >&2
+  exit 1
+fi
+
+# 1) autoformat staged .zig files, then re-stage anything reformatting touched.
+staged_zig=$(git diff --cached --name-only --diff-filter=ACM -- '*.zig')
+if [ -n "$staged_zig" ]; then
+  printf '%s\n' "$staged_zig" | while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    "$ZIG" fmt "$f" >/dev/null 2>&1 && git add -- "$f"
+  done
+  echo "pre-commit: zig fmt applied to staged .zig files"
+fi
+
+# 2) check: build then run unit tests; block on failure.
+log=$(mktemp)
+echo "pre-commit: zig build ..."
+if ! "$ZIG" build >"$log" 2>&1; then
+  echo "pre-commit: 'zig build' FAILED — commit aborted:" >&2; cat "$log" >&2; rm -f "$log"; exit 1
+fi
+echo "pre-commit: zig build test ..."
+if ! "$ZIG" build test >"$log" 2>&1; then
+  echo "pre-commit: 'zig build test' FAILED — commit aborted:" >&2; cat "$log" >&2; rm -f "$log"; exit 1
+fi
+rm -f "$log"
+echo "pre-commit: OK (fmt + build + tests passed)"

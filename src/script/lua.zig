@@ -147,7 +147,13 @@ pub const Script = struct {
         }
         defer c.SDL_free(data);
 
-        if (c.luaL_loadbuffer(self.L, @ptrCast(data), size, self.path) != 0) {
+        // Load under an "@"-prefixed name so Lua treats it as a real file: runtime
+        // tracebacks and LuaPanda breakpoints resolve to the actual path instead of
+        // the `[string "..."]` form. Falls back to the raw path if it doesn't fit.
+        var name_buf: [4096]u8 = undefined;
+        const chunkname: [*c]const u8 = if (std.fmt.bufPrintSentinel(&name_buf, "@{s}", .{std.mem.span(self.path)}, 0)) |s| s.ptr else |_| self.path;
+
+        if (c.luaL_loadbuffer(self.L, @ptrCast(data), size, chunkname) != 0) {
             self.setErrFromStack();
             self.ok = false;
             return false;
@@ -160,6 +166,28 @@ pub const Script = struct {
         self.ok = true;
         self.err = "";
         return true;
+    }
+
+    /// Opt-in (ZIGUI_LUA_DEBUG): connect the embedded Lua to a *local* LuaPanda
+    /// session — VS Code listening on 127.0.0.1:8818. Best-effort: if no listener
+    /// is up it fails quietly and the app runs normally. Called once at startup
+    /// (not from app.lua), so it survives hot-reloads. Loopback only by design.
+    pub fn enableDebugger(self: *Script) void {
+        // Make `require("LuaPanda")` find the file vendored next to the script,
+        // regardless of CWD, then connect (wrapped so a missing IDE never crashes us).
+        const dir = std.fs.path.dirname(std.mem.span(self.path)) orelse ".";
+        var buf: [8192]u8 = undefined;
+        const boot = std.fmt.bufPrintSentinel(&buf,
+            \\package.path = "{s}/?.lua;" .. package.path
+            \\local ok, lp = pcall(require, "LuaPanda")
+            \\if ok then pcall(function() lp.start("127.0.0.1", 8818) end)
+            \\else print("[zigui] LuaPanda not found on package.path") end
+        , .{dir}, 0) catch return;
+        if (c.luaL_loadbuffer(self.L, boot.ptr, boot.len, "=luapanda_bootstrap") == 0) {
+            if (c.lua_pcall(self.L, 0, 0, 0) != 0) c.lua_settop(self.L, -2);
+        } else {
+            c.lua_settop(self.L, -2); // pop load error
+        }
     }
 
     /// Reload if the file changed on disk since last check.

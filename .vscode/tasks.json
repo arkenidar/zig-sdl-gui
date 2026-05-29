@@ -1,0 +1,23 @@
+{
+  // Build task for zigui. `zig build` is a Debug build (symbols included), which
+  // the "Debug zigui (gdb)" launch config attaches to.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "zig build",
+      "type": "shell",
+      // `zig` is resolved via PATH. VS Code often does NOT inherit your shell PATH
+      // (a bare `zig` then fails with exit code 127), so we prepend ~/apps/zig —
+      // where the dev build lives on this machine (see README "Build & run"). If
+      // your zig is elsewhere, change the directory below.
+      "command": "zig",
+      "args": ["build"],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": { "PATH": "${env:HOME}/apps/zig:${env:PATH}" }
+      },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}

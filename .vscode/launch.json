@@ -1,0 +1,71 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Native (Zig) debugging via gdb. Needs the C/C++ extension
+      // (ms-vscode.cpptools). Builds first, then launches under gdb so you can
+      // set breakpoints in src/*.zig (e.g. main.zig, the SDL backend).
+      "name": "Debug zigui (gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/zig-out/bin/zigui",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "preLaunchTask": "zig build",
+      "setupCommands": [
+        { "description": "Enable pretty-printing for gdb", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
+      // To also break in app.lua during the same run: start "Lua: LuaPanda
+      // (listen 8818)" first, then uncomment this so the app connects out:
+      // ,"environment": [{ "name": "ZIGUI_LUA_DEBUG", "value": "1" }]
+    },
+    {
+      // Lua breakpoint debugging via LuaPanda (stuartwang.luapanda). VS Code
+      // LISTENS on 8818; START THIS FIRST, then run the app with the env var set:
+      //   ZIGUI_LUA_DEBUG=1 zig build run
+      // The embedded LuaJIT connects out over 127.0.0.1 and your app.lua
+      // breakpoints hit. useCHook:false forces the portable pure-Lua hook.
+      "name": "Lua: LuaPanda (listen 8818)",
+      "type": "lua",
+      "request": "launch",
+      "tag": "normal",
+      "cwd": "${workspaceFolder}",
+      "luaFileExtension": "",
+      "connectionPort": 8818,
+      "stopOnEntry": false,
+      "useCHook": false,
+      "autoPathMode": true
+    },
+    {
+      // Same as "Debug zigui (gdb)" but sets ZIGUI_LUA_DEBUG so the app connects
+      // to the LuaPanda listener. Meant to be launched via the compound below.
+      "name": "Debug zigui (gdb + Lua)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/zig-out/bin/zigui",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "MIMode": "gdb",
+      "preLaunchTask": "zig build",
+      "environment": [{ "name": "ZIGUI_LUA_DEBUG", "value": "1" }],
+      "setupCommands": [
+        { "description": "Enable pretty-printing for gdb", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      // One click = both debuggers at once. The Lua listener starts first; the gdb
+      // config then runs `zig build` (a few seconds) before the binary launches, so
+      // the listener is ready by the time the app calls LuaPanda.start(). Result:
+      // two concurrent sessions — native breakpoints in src/*.zig AND Lua
+      // breakpoints in scripts/app.lua. Pick the session in the Call Stack panel.
+      "name": "Dual debug (Zig gdb + Lua LuaPanda)",
+      "configurations": ["Lua: LuaPanda (listen 8818)", "Debug zigui (gdb + Lua)"],
+      "stopAll": true
+    }
+  ]
+}
