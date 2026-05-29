@@ -196,6 +196,26 @@ Key design choices:
 - widget interaction logic (button click across press+release, checkbox toggle, slider drag),
 - Lua frame output + **hot-reload** (edit → reload → new output) + the bad-edit error guard.
 
+## Pre-commit gate
+
+A git hook autoformats and checks every commit. Enable it once per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+On commit, `.githooks/pre-commit` runs:
+
+- **format** — `zig fmt` on staged `.zig`, `stylua` on staged `.lua` (the vendored
+  `scripts/LuaPanda.lua` is excluded); reformatted files are re-staged. Lua style lives in
+  `.stylua.toml` (2-space, one-line conditionals kept).
+- **check** — `zig build` then `zig build test`; a failure aborts the commit.
+
+It finds `zig` on PATH or at `~/apps/zig`, and `stylua` on PATH or at `~/.local/bin`
+(install stylua from its [releases](https://github.com/JohnnyMorganz/StyLua/releases) or
+`cargo install stylua`; if it's missing, the hook warns and skips Lua formatting rather than
+blocking).
+
 ## Roadmap
 
 - **Phase 3 — Umbilical:** `net/` with a length-prefixed codec + `Transport { Local, Tcp }`;
