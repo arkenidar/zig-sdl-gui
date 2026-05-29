@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>zig-sdl GUI — Architecture &amp; Design</title>
+<style>
+  :root{
+    color-scheme: dark light;
+    --bg:#1c1e22; --panel:#23262c; --panel2:#2a2e35; --ink:#e8eaee; --muted:#9aa3b0;
+    --accent:#5aa0f0; --accent2:#7ad08a; --warn:#e0b15a; --danger:#e06a6a;
+    --line:#3a3f48; --code:#0f1115; --codefg:#dfe6f2; --note-bg:#1f2530; --lore-bg:#2a2519;
+  }
+  /* Auto light theme when the device prefers light (phones honor this) */
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#ffffff; --panel:#f6f7f9; --panel2:#eceef2; --ink:#1b1e24; --muted:#5b636e;
+      --accent:#1668d6; --accent2:#1f9d57; --warn:#8a5a00; --danger:#c0392b;
+      --line:#d7dbe1; --code:#f3f4f6; --codefg:#1b1e24; --note-bg:#eaf1fb; --lore-bg:#fbf3de;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{display:flex; max-width:1180px; margin:0 auto}
+  nav{
+    position:sticky; top:0; align-self:flex-start; width:250px; height:100vh; overflow:auto;
+    padding:24px 14px 60px; border-right:1px solid var(--line); font-size:13.5px;
+  }
+  nav h2{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:18px 6px 6px}
+  nav a{display:block; color:var(--muted); text-decoration:none; padding:3px 8px; border-radius:6px}
+  nav a:hover{color:var(--ink); background:var(--panel)}
+  main{flex:1; min-width:0; padding:32px 40px 120px; max-width:900px}
+  h1{font-size:30px; margin:.2em 0 .1em; line-height:1.2}
+  h2{font-size:23px; margin:1.7em 0 .5em; padding-top:.3em; border-top:1px solid var(--line)}
+  h3{font-size:18px; margin:1.4em 0 .4em; color:var(--ink)}
+  h4{font-size:15px; margin:1.1em 0 .3em; color:var(--accent)}
+  p,li{color:var(--ink)}
+  a{color:var(--accent)}
+  code{background:var(--code); padding:.12em .4em; border-radius:5px; font:13.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--codefg)}
+  pre{background:var(--code); padding:14px 16px; border-radius:10px; overflow:auto; border:1px solid var(--line)}
+  pre code{background:none; padding:0}
+  .sub{color:var(--muted); font-size:14.5px; margin-top:0}
+  .lead{font-size:17px; color:var(--ink)}
+  table{border-collapse:collapse; width:100%; margin:14px 0; font-size:14.5px}
+  th,td{border:1px solid var(--line); padding:8px 10px; vertical-align:top; text-align:left}
+  th{background:var(--panel2); color:var(--ink); font-weight:600}
+  td.chosen{color:var(--accent2); font-weight:600; white-space:nowrap}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:16px 0}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .pill{display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:999px; background:var(--panel2); color:var(--muted); border:1px solid var(--line)}
+  .pill.ok{color:var(--accent2)} .pill.def{color:var(--warn)} .pill.mut{color:var(--accent)}
+  .why::before{content:"WHY → "; color:var(--accent); font-weight:700; font-size:12px}
+  .how::before{content:"HOW → "; color:var(--accent2); font-weight:700; font-size:12px}
+  .note{border-left:3px solid var(--accent); background:var(--note-bg); padding:10px 14px; border-radius:0 8px 8px 0; margin:14px 0}
+  .lore{border-left:3px solid var(--warn); background:var(--lore-bg); padding:10px 14px; border-radius:0 8px 8px 0; margin:14px 0}
+  figure{margin:18px 0; text-align:center}
+  figcaption{color:var(--muted); font-size:13px; margin-top:6px}
+  /* diagrams are always dark tiles (their text fills are baked light) so they stay
+     readable in both light and dark page themes */
+  svg{max-width:100%; height:auto; background:#23262c; border:1px solid #3a3f48; border-radius:12px}
+  .legend{font:12px ui-monospace,monospace; fill:var(--muted)}
+  hr{border:none; border-top:1px solid var(--line); margin:30px 0}
+  .small{font-size:13.5px; color:var(--muted)}
+  .tag{font:12px ui-monospace,monospace; color:var(--accent2)}
+  ul.tight{margin:.3em 0}
+  /* svg text defaults */
+  text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px}
+  /* mobile / narrow: stack the sidebar on top, single-column grids, tighter padding */
+  @media (max-width:860px){
+    .wrap{flex-direction:column}
+    nav{position:static; width:auto; height:auto; overflow:visible; border-right:none;
+         border-bottom:1px solid var(--line); columns:2; column-gap:18px; padding:14px 16px 8px}
+    nav h2{break-inside:avoid; margin-top:10px}
+    main{padding:18px 16px 80px; max-width:none}
+    .grid2{grid-template-columns:1fr}
+    h1{font-size:24px} h2{font-size:20px}
+    body{font-size:15px}
+    pre{font-size:12.5px}
+    table{font-size:13.5px}
+  }
+  /* print / PDF export: un-stick the sidebar and let content flow full width */
+  @media print{
+    .wrap{display:block}
+    nav{position:static; width:auto; height:auto; overflow:visible; border-right:none; border-bottom:1px solid var(--line); columns:3}
+    nav h2{break-inside:avoid}
+    main{max-width:none; padding:20px}
+    svg,.card,pre,table,figure{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <strong>Architecture</strong>
+  <h2>Orientation</h2>
+  <a href="#status">Status &amp; how-maintained</a>
+  <a href="#need">1. The need</a>
+  <a href="#idea">2. The central idea</a>
+  <h2>Decisions</h2>
+  <a href="#d-paradigm">3. Immediate vs retained</a>
+  <a href="#d-layout">4. Layout engine</a>
+  <a href="#d-widgets">5. Widgets as userland</a>
+  <a href="#d-lang">6. Language: Zig</a>
+  <a href="#d-lua">7. Logic in Lua</a>
+  <a href="#d-transport">8. Transport optionality</a>
+  <a href="#d-umbilical">9. Umbilical channels</a>
+  <a href="#d-vps">10. VPS roles</a>
+  <h2>Dynamics</h2>
+  <a href="#frame">11. The frame pipeline</a>
+  <a href="#ids">12. IDs &amp; pointer</a>
+  <a href="#text">13. Text: measure &amp; cache</a>
+  <a href="#reload">14. Hot-reload</a>
+  <a href="#debug">15. Debugging</a>
+  <a href="#gate">16. Pre-commit gate</a>
+  <h2>Context</h2>
+  <a href="#zig017">17. Zig 0.17-dev tax</a>
+  <a href="#modules">18. Module map</a>
+  <a href="#inspirations">19. Inspirations</a>
+  <a href="#roadmap">20. Roadmap</a>
+  <a href="#log">21. Decision log</a>
+</nav>
+
+<main>
+<h1>zig-sdl GUI — Architecture &amp; Design</h1>
+<p class="sub">A living design record: needs, the choices considered, the choices made, the reasons,
+the lore, the dynamics — captured as they are discussed, built, tested, and mutated.</p>
+
+<section id="status">
+<div class="card">
+  <p style="margin:.2em 0"><strong>Project</strong>: a small immediate-mode GUI for <b>Zig&nbsp;+&nbsp;SDL3</b>,
+  with app logic in <b>Lua (LuaJIT)</b> and live <b>hot-reload</b>; designed so the same UI code can later
+  run split across an optional socket "umbilical" (desktop&nbsp;↔&nbsp;desktop, VPS, or phone).</p>
+  <p style="margin:.6em 0 .2em"><strong>Built &amp; verified</strong>:
+    <span class="pill ok">Phase 1 — native core</span>
+    <span class="pill ok">Phase 2 — Lua + hot-reload</span>
+    <span class="pill ok">debugging (gdb + LuaPanda)</span>
+    <span class="pill ok">pre-commit gate</span>
+    &nbsp;·&nbsp; <strong>Designed-for</strong>:
+    <span class="pill def">Phase 3 — umbilical</span>
+    <span class="pill def">Phase 4 — Android</span>
+  </p>
+</div>
+<div class="note">
+  <strong>How this document is maintained.</strong> It is meant to grow with the project. Each design
+  topic is written as <em>Considered → Chosen → Why → Status</em>, where Status is one of
+  <span class="pill ok">tested</span> (built &amp; verified), <span class="pill def">deferred</span> (decided,
+  not yet built), or <span class="pill mut">mutated</span> (a prior decision that changed). New decisions
+  get a row in the <a href="#log">Decision log</a> with a date. When something is corrected or mutated,
+  the old reasoning stays (struck or noted) so the <em>why</em> of the change is legible later.
+  See also the user-facing <a href="../../README.md">README</a> and the source under <a href="../../src/">src/</a>.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="need">1. The need</h2>
+<p class="lead">A GUI that is simple to start, but built to scale into something unusual: <b>mobile-first
+in target</b> (an Android phone), <b>desktop-mainly in workflow</b> (a Debian/Windows laptop with no
+touchscreen), connected by an <b>"umbilical"</b> so the app can <b>evolve on the fly</b> while it runs.</p>
+<table>
+  <tr><th>Need</th><th>What it forces in the design</th></tr>
+  <tr><td>Simple, but expansion-ready</td><td>A tiny core with clean seams; everything advanced is additive, never a rewrite.</td></tr>
+  <tr><td>Mobile + desktop from one codebase</td><td>Unified pointer (mouse <em>and</em> touch); DPI scaling; no platform forks in UI code.</td></tr>
+  <tr><td>Layout that doesn't fight you</td><td>A layout engine that resolves rectangles from intent, not hand-placed coordinates.</td></tr>
+  <tr><td>Evolve on the fly</td><td>App logic that reloads instantly — pushing toward a scripted (not compiled) logic layer.</td></tr>
+  <tr><td>Umbilical dev (desktop→phone/VPS)</td><td>The UI's input and output must be <em>serializable data</em> so they can cross a socket.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="idea">2. The central idea — a GUI is a function whose edges are data</h2>
+<p>Everything else is a consequence of one decision:</p>
+<pre><code>frame(state, input_events, ui) → (state', command_buffer)
+                                  -- app.lua calls ui.button(...), ui.slider(...)</code></pre>
+<p>Both the <b>input</b> going in and the <b>command buffer</b> (the draw list) coming out are <em>plain
+data</em> — no renderer pointers, no OS handles. The instant that holds, the function stops caring
+<em>where</em> it runs or <em>where</em> the pixels land. Three deployments collapse into one code path.</p>
+
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="GUI as a pure function with serializable edges, and three deployments">
+  <defs><marker id="a1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+    <path d="M0,0 L9,4.5 L0,9 z" fill="#5aa0f0"/></marker></defs>
+  <!-- function row -->
+  <rect x="20" y="30" width="120" height="42" rx="8" fill="#2a2e35" stroke="#3a3f48"/>
+  <text x="80" y="50" text-anchor="middle" fill="#e8eaee">state</text>
+  <text x="80" y="65" text-anchor="middle" fill="#9aa3b0">+ input events</text>
+  <rect x="300" y="24" width="150" height="54" rx="10" fill="#1f2530" stroke="#5aa0f0"/>
+  <text x="375" y="47" text-anchor="middle" fill="#5aa0f0">frame()</text>
+  <text x="375" y="64" text-anchor="middle" fill="#9aa3b0" font-size="11">in Lua</text>
+  <rect x="610" y="30" width="130" height="42" rx="8" fill="#2a2e35" stroke="#3a3f48"/>
+  <text x="675" y="50" text-anchor="middle" fill="#e8eaee">command</text>
+  <text x="675" y="65" text-anchor="middle" fill="#9aa3b0">buffer (draw list)</text>
+  <line x1="140" y1="51" x2="298" y2="51" stroke="#5aa0f0" stroke-width="2" marker-end="url(#a1)"/>
+  <line x1="450" y1="51" x2="608" y2="51" stroke="#5aa0f0" stroke-width="2" marker-end="url(#a1)"/>
+  <text x="220" y="42" text-anchor="middle" class="legend">serializable</text>
+  <text x="530" y="42" text-anchor="middle" class="legend">serializable</text>
+  <!-- three deployments -->
+  <text x="380" y="120" text-anchor="middle" fill="#9aa3b0">…so the same function runs as any of:</text>
+  <rect x="40" y="140" width="210" height="120" rx="10" fill="#23262c" stroke="#3a3f48"/>
+  <text x="145" y="163" text-anchor="middle" fill="#7ad08a">LOCAL</text>
+  <text x="145" y="186" text-anchor="middle" fill="#dde1e8" font-size="11.5">one process</text>
+  <text x="145" y="204" text-anchor="middle" fill="#9aa3b0" font-size="11">frame() in-process,</text>
+  <text x="145" y="220" text-anchor="middle" fill="#9aa3b0" font-size="11">commands rendered direct</text>
+  <text x="145" y="242" text-anchor="middle" fill="#5aa0f0" font-size="11">desktop now / device later</text>
+  <rect x="275" y="140" width="210" height="120" rx="10" fill="#23262c" stroke="#3a3f48"/>
+  <text x="380" y="163" text-anchor="middle" fill="#e0b15a">UI SERVER</text>
+  <text x="380" y="186" text-anchor="middle" fill="#dde1e8" font-size="11.5">headless</text>
+  <text x="380" y="204" text-anchor="middle" fill="#9aa3b0" font-size="11">runs frame(), no display</text>
+  <text x="380" y="220" text-anchor="middle" fill="#9aa3b0" font-size="11">sends command buffers</text>
+  <text x="380" y="242" text-anchor="middle" fill="#5aa0f0" font-size="11">desktop or VPS</text>
+  <rect x="510" y="140" width="210" height="120" rx="10" fill="#23262c" stroke="#3a3f48"/>
+  <text x="615" y="163" text-anchor="middle" fill="#e0b15a">UI CLIENT</text>
+  <text x="615" y="186" text-anchor="middle" fill="#dde1e8" font-size="11.5">thin renderer</text>
+  <text x="615" y="204" text-anchor="middle" fill="#9aa3b0" font-size="11">owns window, renders,</text>
+  <text x="615" y="220" text-anchor="middle" fill="#9aa3b0" font-size="11">forwards touch/mouse</text>
+  <text x="615" y="242" text-anchor="middle" fill="#5aa0f0" font-size="11">desktop or phone</text>
+</svg>
+<figcaption>One function; three deployments. Transport is a pluggable, optional leaf (§8).</figcaption>
+</figure>
+
+<p>The layout engine and the command buffer reinforce each other: widgets don't paint, they
+<em>append commands</em> while a layout engine resolves their rectangles — and that command buffer is
+exactly what the umbilical would serialize. The shape that eases layout is the shape that enables the
+network. This is the <a href="#inspirations">microui</a> insight.</p>
+
+<!-- ============================================================ -->
+<h2 id="d-paradigm">3. Decision — immediate-mode, not retained-mode</h2>
+<table>
+  <tr><th>Considered</th><th>Chosen</th><th>Why</th></tr>
+  <tr><td>Retained-mode (persistent widget tree + callbacks, Qt/DOM-style)</td>
+      <td class="chosen">Immediate-mode</td>
+      <td>Retained mode keeps <em>two</em> sources of truth (your data + the widget tree) that must be
+      synced — where most GUI bugs live. Immediate mode re-declares the UI from state every frame, so the
+      UI is always a faithful image of state. Less bookkeeping; trivially data-driven; pairs with
+      "UI&nbsp;=&nbsp;function".</td></tr>
+</table>
+<p class="why">No desync, tiny core, and the per-frame redraw cost is nothing for a 2D widget UI.</p>
+<p class="how">Each widget call computes its rect, reads the pointer, emits commands, returns a result
+(<code>if ui.button("+")</code> <em>is</em> the click). <span class="pill ok">tested</span></p>
+<div class="lore"><b>Lore.</b> Immediate-mode UI was popularized by Casey Muratori (Handmade Hero) and
+Omar Cornut's <b>Dear ImGui</b>. The mental shift: think "what should this frame look like," not "respond
+to this event." The cost is that <em>state is yours</em> and <em>widget order matters</em> for identity (§12).</div>
+
+<!-- ============================================================ -->
+<h2 id="d-layout">4. Decision — containers + row sizing specs</h2>
+<table>
+  <tr><th>Considered</th><th>Chosen</th><th>Why</th></tr>
+  <tr><td>Hand-placed x/y coordinates · Flex/constraint solver (two-pass)</td>
+      <td class="chosen">microui-style rows with per-column width specs</td>
+      <td>Hand-placed coordinates don't survive resize/DPI and don't scale to real UIs. A full flex
+      solver is more expressive but more code and harder to keep immediate-mode-pure. Row specs are tiny,
+      deterministic, single-pass, and resolve perfectly against the viewport.</td></tr>
+</table>
+<p>A column width spec is read as: <code>&gt;1</code> → fixed logical pixels (×DPI scale),
+<code>0..1</code> → fraction of available width, <code>&le;0</code> → "fill" (share the leftover space).
+A row with no specs is one full-width column. Resolution happens once when the row is declared.</p>
+<figure>
+<svg viewBox="0 0 720 130" role="img" aria-label="Row sizing example: 48 fill 48">
+  <rect x="20" y="30" width="680" height="40" rx="6" fill="none" stroke="#3a3f48" stroke-dasharray="4 4"/>
+  <rect x="28" y="36" width="100" height="28" rx="5" fill="#404650"/><text x="78" y="55" text-anchor="middle" fill="#e8eaee">48px</text>
+  <rect x="136" y="36" width="448" height="28" rx="5" fill="#2a3340"/><text x="360" y="55" text-anchor="middle" fill="#7ad08a">fill (-1) → shares leftover</text>
+  <rect x="592" y="36" width="100" height="28" rx="5" fill="#404650"/><text x="642" y="55" text-anchor="middle" fill="#e8eaee">48px</text>
+  <text x="360" y="100" text-anchor="middle" class="legend">ui.row{ 48, -1, 48 }   →   fixed | fill | fixed     (DPI &amp; resize handled for free)</text>
+</svg>
+</figure>
+<p class="how">See <code>beginRow()</code> / <code>next()</code> in
+<a href="../../src/ui/core.zig">src/ui/core.zig</a>. <span class="pill ok">tested</span></p>
+
+<!-- ============================================================ -->
+<h2 id="d-widgets">5. Decision — widgets are <em>userland</em>, not a fixed catalog</h2>
+<p>The toolkit's value is the <b>public widget-building API</b> on the context, not a closed set of
+widgets. A "widget" is any function that uses three families of primitives:</p>
+<div class="grid2">
+  <div class="card"><h4>Layout</h4><code>next()</code>, <code>row(specs,h)</code> — ask the engine where you go.</div>
+  <div class="card"><h4>Interaction</h4><code>getId()</code>, <code>hovered()</code>, <code>buttonBehavior()</code> — query the unified pointer against a rect/id.</div>
+  <div class="card"><h4>Drawing</h4><code>drawRect/drawBorder/drawText/drawImage</code>, <code>measure()</code> — emit commands.</div>
+  <div class="card"><h4>Composition</h4>Widgets call widgets. A custom one is ~10 lines, built from the same calls — in Zig <em>or</em> Lua.</div>
+</div>
+<p><a href="../../src/ui/widgets.zig">widgets.zig</a> holds <em>example</em> widgets
+(<code>label/button/checkbox/slider</code>); nothing in <code>core/</code> or <code>render/</code> depends
+on them, so you replace or extend freely. Built-ins are not privileged.</p>
+<p class="why">"Flexibility is a must" — the user wanted definable/composable widgets, not pre-baked ones.
+This also leaves the door open for a later declarative/data-driven layer on the same primitives.
+<span class="pill ok">tested</span> (custom widgets demonstrated in Lua).</p>
+
+<!-- ============================================================ -->
+<h2 id="d-lang">6. Decision — native core in Zig</h2>
+<table>
+  <tr><th>Considered</th><th>Chosen</th><th>Why / trade</th></tr>
+  <tr><td>C + microui · Rust + egui · Go · Odin</td>
+      <td class="chosen">Zig (+ SDL3)</td>
+      <td>This project leans on Zig's two genuine superpowers: <b>best-in-class C interop</b>
+      (translate-c consumes SDL/Lua headers directly — no bindings to maintain) and <b>best-in-class
+      cross-compilation</b> (trivial Android/Windows targets — exactly the mobile-first + VPS-build story).
+      No GC suits per-frame immediate mode. Cost: pre-1.0 churn (see §17).</td></tr>
+</table>
+<div class="card">
+<p style="margin:.2em 0"><b>The alternatives, fairly</b> (recorded so the road not taken stays legible):</p>
+<ul class="tight">
+  <li><b>Rust + egui</b> — the strongest competitor: egui <em>already is</em> this paradigm and runs
+  desktop/web/Android. You'd ship faster but adopt a framework instead of owning a minimal one; C interop is more ceremony.</li>
+  <li><b>C + microui</b> — lowest-risk proven foundation; could even be <em>bound from Zig</em> to get both. Manual memory; harder Android/build setup.</li>
+  <li><b>Go</b> — great for the headless server half; weak for the SDL render half (cgo cost, GC in the loop).</li>
+  <li><b>Odin</b> — a true Zig peer for this (great C interop, gamedev focus); smaller community, also pre-1.0.</li>
+</ul>
+</div>
+<p class="small">The architecture itself is language-agnostic — the language choice changes build/interop/maintenance ergonomics, not the design.</p>
+
+<!-- ============================================================ -->
+<h2 id="d-lua">7. Decision — app logic in Lua (LuaJIT)</h2>
+<p>The architecture already drew a seam at "the part that evolves." Lua makes that seam <em>dynamic</em>:
+the native Zig core (SDL, command buffer, layout, widget primitives) is compiled rarely; the
+<code>frame()</code> logic is a script.</p>
+<table>
+  <tr><th>Considered</th><th>Chosen</th><th>Why</th></tr>
+  <tr><td>Native compiled <code>app.zig</code> (restart to evolve) · Native hot-reload via reloadable <code>.so</code></td>
+      <td class="chosen">Lua-scripted <code>app.lua</code></td>
+      <td>Turns the <em>deferred, heavy</em> native hot-reload into something <em>free and instant</em>:
+      reload = re-read a file. The umbilical can later ship <em>text</em>, not cross-compiled binaries.
+      The dynamic boundary sits exactly where the user keeps pointing ("evolve on the fly").</td></tr>
+</table>
+<p class="why">It converts the hardest goal (live evolution) into the cheapest mechanism, and it
+<b>mutated a prior decision</b>: "no hot-reload in v1 / fast-restart only" became "Lua hot-reload <em>is</em>
+in v1" once Lua was chosen. <span class="pill mut">mutated</span> → <span class="pill ok">tested</span></p>
+<p class="how">Cost paid up front: a Zig↔LuaJIT binding (<a href="../../src/script/lua.zig">script/lua.zig</a>)
+that reflects the widget API into a Lua <code>ui</code> table. Per-frame Lua is a non-issue for a widget UI
+(LuaJIT is fast; calls stay coarse).</p>
+<div class="lore"><b>Similar prior art:</b> game engines pairing a native core with Lua scripts; especially
+<b>Löve2D</b> (Lua + SDL). This is "Löve2D-but-immediate-mode-GUI-with-an-umbilical."</div>
+
+<!-- ============================================================ -->
+<h2 id="d-transport">8. Decision — the umbilical is optional, in two senses</h2>
+<p>"Optional" is not a feeling; it is structural.</p>
+<div class="grid2">
+  <div class="card"><h4>Runtime-optional</h4>The frame loop talks to a <code>Transport</code> interface
+  (<code>sendInput/recvInput/sendCommands/recvCommands</code>). The <code>Local</code> implementation is a
+  <b>zero-cost in-process pass-through</b> (stash a buffer, read it back — no sockets, no serialization).
+  "Not networked" is just the <code>Local</code> impl of the same interface.</div>
+  <div class="card"><h4>Compile-time-optional</h4>Nothing in <code>ui/</code> or <code>render/</code> imports
+  <code>net/</code> — they know only the interface + the data types. A local-only build can
+  <b>exclude <code>net/</code></b> behind <code>-Dnet=false</code> and contain <em>zero socket code</em>.
+  You opt <em>into</em> the umbilical; you never opt out.</div>
+</div>
+<p class="small"><span class="pill def">deferred</span> — the <code>Transport</code>/<code>net/</code> layer
+is designed, not yet built (Phase 3). The <code>-Dnet</code> build option already exists in
+<a href="../../build.zig">build.zig</a> as the placeholder for this seam.</p>
+
+<!-- ============================================================ -->
+<h2 id="d-umbilical">9. Two umbilical channels</h2>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="Remote-render vs logic-push channels">
+  <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#7ad08a"/></marker>
+        <marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#e0b15a"/></marker></defs>
+  <text x="20" y="28" fill="#7ad08a">A · remote-render (per-frame data)</text>
+  <rect x="30" y="40" width="150" height="46" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="105" y="60" text-anchor="middle" fill="#e8eaee">dev / server</text><text x="105" y="76" text-anchor="middle" fill="#9aa3b0" font-size="11">runs frame()</text>
+  <rect x="560" y="40" width="150" height="46" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="635" y="60" text-anchor="middle" fill="#e8eaee">device</text><text x="635" y="76" text-anchor="middle" fill="#9aa3b0" font-size="11">renders</text>
+  <line x1="180" y1="56" x2="558" y2="56" stroke="#7ad08a" stroke-width="2" marker-end="url(#a2)"/><text x="370" y="50" text-anchor="middle" class="legend">command buffer →</text>
+  <line x1="558" y1="74" x2="182" y2="74" stroke="#7ad08a" stroke-width="2" marker-end="url(#a2)"/><text x="370" y="92" text-anchor="middle" class="legend">← input events</text>
+  <text x="20" y="150" fill="#e0b15a">B · logic-push (text on edit only)  ★ the Lua payoff</text>
+  <rect x="30" y="162" width="150" height="46" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="105" y="182" text-anchor="middle" fill="#e8eaee">dev box</text><text x="105" y="198" text-anchor="middle" fill="#9aa3b0" font-size="11">edits app.lua</text>
+  <rect x="560" y="162" width="150" height="46" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="635" y="182" text-anchor="middle" fill="#e8eaee">device</text><text x="635" y="198" text-anchor="middle" fill="#9aa3b0" font-size="11">runs Lua locally</text>
+  <line x1="180" y1="185" x2="558" y2="185" stroke="#e0b15a" stroke-width="2" marker-end="url(#a3)"/><text x="370" y="178" text-anchor="middle" class="legend">app.lua source (a few KB, on each save)</text>
+  <text x="370" y="232" text-anchor="middle" class="legend">device renders locally — no per-frame streaming; host never recompiles for app edits</text>
+</svg>
+</figure>
+<p><b>Logic-push</b> is the cheaper, higher-value first step (Phase 3): it is literally hot-reload where
+the file arrives over a socket. It largely dissolves the "VPS must compile Zig" question — logic is text.
+<b>Remote-render</b> earns its keep only for "a server driving many thin clients." <span class="pill def">deferred</span>.</p>
+
+<!-- ============================================================ -->
+<h2 id="d-vps">10. VPS roles</h2>
+<p>Because logic is text, a VPS rarely needs to compile:</p>
+<ul class="tight">
+  <li><b>Lua distribution authority</b> — holds <code>app.lua</code>, pushes it to clients; instant, fan-out, no compile.</li>
+  <li><b>Cross-compile/build server (native host only)</b> — runs <code>zig build -Dtarget=aarch64-linux-android</code>
+  so the laptop never sets up the NDK; needed only when the <em>native core</em> changes.</li>
+</ul>
+<p class="small"><b>Caveat (security):</b> pushing code to run on a shared box is RCE-by-design — fine for a
+personal umbilical; a public/multi-client server needs auth + a sandboxed Lua env (tracked with deferred
+TLS/multi-session work). <span class="pill def">deferred</span></p>
+
+<!-- ============================================================ -->
+<h2 id="frame">11. Dynamics — the frame pipeline</h2>
+<figure>
+<svg viewBox="0 0 760 150" role="img" aria-label="Per-frame pipeline">
+  <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#5aa0f0"/></marker></defs>
+  <g font-size="12">
+  <rect x="14" y="50" width="120" height="50" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="74" y="72" text-anchor="middle" fill="#e8eaee">SDL events</text><text x="74" y="88" text-anchor="middle" fill="#9aa3b0" font-size="10.5">mouse + finger</text>
+  <rect x="160" y="50" width="120" height="50" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="220" y="68" text-anchor="middle" fill="#e8eaee">InputEvent[]</text><text x="220" y="84" text-anchor="middle" fill="#9aa3b0" font-size="10.5">unified pointer</text>
+  <rect x="306" y="44" width="150" height="62" rx="10" fill="#1f2530" stroke="#5aa0f0"/><text x="381" y="66" text-anchor="middle" fill="#5aa0f0">beginFrame</text><text x="381" y="82" text-anchor="middle" fill="#5aa0f0">→ app.lua frame()</text><text x="381" y="97" text-anchor="middle" fill="#9aa3b0" font-size="10">→ endFrame</text>
+  <rect x="482" y="50" width="120" height="50" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="542" y="68" text-anchor="middle" fill="#e8eaee">Command[]</text><text x="542" y="84" text-anchor="middle" fill="#9aa3b0" font-size="10.5">arena, per-frame</text>
+  <rect x="628" y="50" width="120" height="50" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="688" y="68" text-anchor="middle" fill="#e8eaee">SDL render</text><text x="688" y="84" text-anchor="middle" fill="#9aa3b0" font-size="10.5">+ present</text>
+  <line x1="134" y1="75" x2="158" y2="75" stroke="#5aa0f0" stroke-width="2" marker-end="url(#a4)"/>
+  <line x1="280" y1="75" x2="304" y2="75" stroke="#5aa0f0" stroke-width="2" marker-end="url(#a4)"/>
+  <line x1="456" y1="75" x2="480" y2="75" stroke="#5aa0f0" stroke-width="2" marker-end="url(#a4)"/>
+  <line x1="602" y1="75" x2="626" y2="75" stroke="#5aa0f0" stroke-width="2" marker-end="url(#a4)"/>
+  </g>
+  <text x="381" y="132" text-anchor="middle" class="legend">the dashed middle box is the serializable boundary the umbilical would cut</text>
+</svg>
+</figure>
+<ul class="tight">
+  <li><b>beginFrame</b> resets the per-frame arena + command buffer, ingests input events into the pointer
+  model (edge flags <code>pressed/released</code>), and sets the layout body from the viewport (DPI-scaled padding).</li>
+  <li><b>frame()</b> (Lua) declares the UI; widgets append commands. Text strings are copied into the arena so the buffer stays valid until render.</li>
+  <li><b>endFrame</b> clears the active widget on pointer-release.</li>
+  <li><b>render</b> walks the command buffer into SDL draw calls; <b>present</b> with vsync.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="ids">12. Dynamics — identity &amp; the unified pointer</h2>
+<p><b>Interaction IDs</b> come from hashing a widget's label seeded by an id-stack (<code>getId</code>,
+<code>pushId/popId</code>). <code>hot_id</code> = pointer is over it; <code>active_id</code> = pointer pressed
+down on it; a <em>click</em> is press-on-it&nbsp;AND&nbsp;release-on-it. This is what makes
+<code>if ui.button("+")</code> correct across the press→release pair.</p>
+<div class="note"><b>Specificity / gotcha.</b> Identity is label-based, so two widgets with the same label in
+the same scope collide — use <code>pushId(i)</code> in dynamic lists. The demo keeps labels unique
+(<code>-</code>, <code>+</code>, <code>Reset</code>) so it "just works." This is the classic immediate-mode
+trade and is documented, not hidden.</div>
+<p><b>Unified pointer (touch-ready).</b> <code>SDL_EVENT_MOUSE_*</code> and <code>SDL_EVENT_FINGER_*</code>
+both map to the same <code>pointer_down/up/move</code> events (finger coords are normalized 0..1 → multiplied
+by output size). Widgets never know whether a touch or a mouse drove them. <span class="pill ok">tested</span></p>
+
+<!-- ============================================================ -->
+<h2 id="text">13. Dynamics — text is measured, then cached</h2>
+<p>Layout needs text width (a button is as wide as its label), but text commands carry the <em>string</em>,
+not pixels. So:</p>
+<ul class="tight">
+  <li>The core measures via a backend-supplied <b>measure callback</b> (<code>MeasureFn</code>) — a single
+  indirection that lets a future headless server measure with TTF (no video subsystem) while a client
+  rasterizes. Layout stays pixel-exact in both.</li>
+  <li>The backend rasterizes glyphs once with <code>TTF_RenderText_Blended</code> and <b>caches</b> the
+  texture (keyed by string), tinting per-draw via <code>SDL_SetTextureColorMod</code> — so the same white
+  glyph texture serves any color, and re-rendering happens only for new strings.</li>
+</ul>
+<p class="small">v1 simplification (a deliberate, recorded shortcut): a single font pixel size, re-opened
+only when DPI scale changes (the cache is then cleared). HIGH_PIXEL_DENSITY is intentionally off so
+render-output size == window size == mouse-coordinate space (no point/pixel mismatch).</p>
+
+<!-- ============================================================ -->
+<h2 id="reload">14. Dynamics — hot-reload</h2>
+<p>The loop checks the script file's <code>modify_time</code> each frame (via SDL's
+<code>SDL_GetPathInfo</code>); on change it re-reads the file (<code>SDL_LoadFile</code>) and re-runs the
+chunk, which redefines the global <code>frame</code>. The <b>state table persists across reloads</b> (it's
+held by a registry ref), so values like <code>count</code> survive an edit. A <code>pcall</code> guard turns
+a syntax/runtime error into an on-screen message instead of a crash; fixing the file clears it.</p>
+<p class="how">Chunks load under an <code>@</code>-prefixed name so tracebacks and the Lua debugger resolve
+to the real path, not <code>[string&nbsp;"..."]</code>. See <code>loadFile</code>/<code>maybeReload</code> in
+<a href="../../src/script/lua.zig">script/lua.zig</a>.
+<span class="pill ok">tested</span> — verified by a unit test (edit→reload→new output; bad-edit→error view)
+<em>and</em> demonstrated live (editing a running window changed its title and added a button, state preserved).</p>
+
+<!-- ============================================================ -->
+<h2 id="debug">15. Dynamics — debugging (two independent debuggers)</h2>
+<figure>
+<svg viewBox="0 0 760 200" role="img" aria-label="Debugging architecture">
+  <rect x="40" y="60" width="240" height="90" rx="10" fill="#23262c" stroke="#3a3f48"/>
+  <text x="160" y="84" text-anchor="middle" fill="#e8eaee">zigui process</text>
+  <rect x="60" y="98" width="90" height="36" rx="6" fill="#2a2e35" stroke="#3a3f48"/><text x="105" y="120" text-anchor="middle" fill="#9aa3b0" font-size="11">Zig core</text>
+  <rect x="170" y="98" width="90" height="36" rx="6" fill="#2a2e35" stroke="#3a3f48"/><text x="215" y="120" text-anchor="middle" fill="#9aa3b0" font-size="11">LuaJIT</text>
+  <rect x="500" y="20" width="220" height="56" rx="10" fill="#1f2530" stroke="#5aa0f0"/><text x="610" y="44" text-anchor="middle" fill="#5aa0f0">gdb</text><text x="610" y="62" text-anchor="middle" fill="#9aa3b0" font-size="11">native breakpoints (src/*.zig)</text>
+  <rect x="500" y="120" width="220" height="60" rx="10" fill="#2a2519" stroke="#e0b15a"/><text x="610" y="144" text-anchor="middle" fill="#e0b15a">VS Code · LuaPanda</text><text x="610" y="162" text-anchor="middle" fill="#9aa3b0" font-size="11">Lua breakpoints (app.lua)</text>
+  <line x1="280" y1="90" x2="498" y2="50" stroke="#5aa0f0" stroke-width="2"/>
+  <line x1="262" y1="120" x2="498" y2="150" stroke="#e0b15a" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="380" y="150" text-anchor="middle" class="legend">127.0.0.1:8818 loopback (LuaSocket)</text>
+</svg>
+</figure>
+<ul class="tight">
+  <li><b>Native (gdb)</b> — the Debug build has symbols; halts the whole process at Zig breakpoints.</li>
+  <li><b>Lua (LuaPanda)</b> — opt-in via <code>ZIGUI_LUA_DEBUG=1</code>; the embedded Lua connects out to a
+  VS Code LuaPanda session on <b>127.0.0.1:8818 (loopback only by design)</b>. Best-effort: no listener →
+  quiet no-op. Started once at startup so it survives hot-reloads. A LuaPanda breakpoint parks inside
+  <code>frame()</code> (the window pauses, resumes on continue) while gdb still sees the process running.</li>
+  <li><b>Both at once</b> — the compound "Dual debug" config runs gdb + LuaPanda together.</li>
+</ul>
+<p class="small"><b>Specificity:</b> a breakpoint must target the <em>statement</em>, not a one-line
+<code>if … then … end</code> (the <code>if</code> is polled every frame). This is exactly why the project
+keeps each statement on its own line (stylua <code>collapse_simple_statement = "Never"</code>, §16).
+<span class="pill ok">tested</span></p>
+
+<!-- ============================================================ -->
+<h2 id="gate">16. Dynamics — the pre-commit gate</h2>
+<p>Enabled via <code>git config core.hooksPath .githooks</code>. On commit, <a href="../../.githooks/pre-commit">.githooks/pre-commit</a>:</p>
+<ol class="tight">
+  <li>resolves <code>zig</code> (PATH or <code>~/apps/zig</code> — GUI git clients often lack PATH),</li>
+  <li><b>autoformats</b> staged <code>.zig</code> (<code>zig fmt</code>) and staged <code>.lua</code>
+  (<code>stylua</code>, excluding the vendored <code>LuaPanda.lua</code>), re-staging what changed,</li>
+  <li><b>checks</b>: <code>zig build</code> then <code>zig build test</code> — a failure blocks the commit.</li>
+</ol>
+<p class="why">Keeps <code>main</code> always-formatted and always-green; commits go straight to
+<code>main</code> (no branch) because the gate is the safety net. <span class="pill ok">tested</span></p>
+
+<!-- ============================================================ -->
+<h2 id="zig017">17. Context — the Zig 0.17.0-dev tax</h2>
+<p>Targeting a dev build meant absorbing in-flight std/toolchain changes. Recorded so the
+<em>why</em> behind unusual choices is clear:</p>
+<table>
+  <tr><th>Change in 0.17-dev</th><th>What we did</th></tr>
+  <tr><td><code>@cImport</code> removed</td><td>C interop via a build <b>translate-c</b> step over <a href="../../src/cdefs.h">src/cdefs.h</a> (SDL3 + ttf + image + LuaJIT in one module).</td></tr>
+  <tr><td><code>std.ArrayList</code> is unmanaged</td><td>Buffers carry the allocator explicitly (<code>cmds.append(gpa, …)</code>); init via <code>.empty</code>.</td></tr>
+  <tr><td>Build API: <code>createModule</code>/<code>root_module</code>; linking moved onto the module</td><td><code>mod.linkSystemLibrary(...)</code>; <code>addExecutable(.{ .root_module })</code>.</td></tr>
+  <tr><td>std I/O + args mid-rework (<code>Io</code> param)</td><td>Config read via <code>SDL_getenv</code>; file I/O via SDL (<code>SDL_LoadFile</code>/<code>SDL_GetPathInfo</code>) — sidesteps the churn entirely.</td></tr>
+  <tr><td>Lua C-API entries are macros</td><td>Call the real underlying functions (<code>lua_createtable</code>, <code>lua_pushcclosure</code>, <code>lua_settop</code>, …) rather than the macro spellings translate-c can't emit.</td></tr>
+</table>
+<div class="lore"><b>Wisdom.</b> Pin the toolchain; expect periodic fixups on upgrade. The interop/cross-compile
+wins are worth the churn for <em>this</em> project — but the churn is real and is the main standing cost.</div>
+
+<!-- ============================================================ -->
+<h2 id="modules">18. Module map &amp; dependency rule</h2>
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="Module dependency layers">
+  <defs><marker id="a5" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9aa3b0"/></marker></defs>
+  <rect x="300" y="20" width="160" height="40" rx="8" fill="#1f2530" stroke="#5aa0f0"/><text x="380" y="44" text-anchor="middle" fill="#5aa0f0">main.zig</text>
+  <rect x="120" y="100" width="170" height="40" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="205" y="124" text-anchor="middle" fill="#e8eaee">script/lua.zig</text>
+  <rect x="500" y="100" width="180" height="40" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="590" y="124" text-anchor="middle" fill="#e8eaee">render/sdl_backend.zig</text>
+  <rect x="120" y="170" width="170" height="40" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="205" y="194" text-anchor="middle" fill="#e8eaee">ui/widgets.zig</text>
+  <rect x="120" y="240" width="170" height="40" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="205" y="264" text-anchor="middle" fill="#e8eaee">ui/core.zig</text>
+  <rect x="360" y="240" width="150" height="40" rx="8" fill="#23262c" stroke="#3a3f48"/><text x="435" y="264" text-anchor="middle" fill="#e8eaee">ui/command.zig</text>
+  <rect x="560" y="240" width="170" height="40" rx="8" fill="#2a2e35" stroke="#3a3f48"/><text x="645" y="259" text-anchor="middle" fill="#9aa3b0" font-size="11.5">sdl.zig → cdefs</text><text x="645" y="273" text-anchor="middle" fill="#9aa3b0" font-size="10">(C: SDL+ttf+image+Lua)</text>
+  <g stroke="#9aa3b0" stroke-width="1.5">
+  <line x1="350" y1="60" x2="240" y2="98" marker-end="url(#a5)"/>
+  <line x1="410" y1="60" x2="560" y2="98" marker-end="url(#a5)"/>
+  <line x1="205" y1="140" x2="205" y2="168" marker-end="url(#a5)"/>
+  <line x1="205" y1="210" x2="205" y2="238" marker-end="url(#a5)"/>
+  <line x1="290" y1="260" x2="358" y2="260" marker-end="url(#a5)"/>
+  <line x1="205" y1="240" x2="380" y2="62" stroke-dasharray="3 3" opacity="0"/>
+  <line x1="590" y1="140" x2="640" y2="238" marker-end="url(#a5)"/>
+  <line x1="290" y1="190" x2="560" y2="255" marker-end="url(#a5)" opacity="0.5"/>
+  </g>
+  <text x="435" y="298" text-anchor="middle" class="legend">core depends only on command (pure data) — and calls NO SDL → can run headless</text>
+</svg>
+</figure>
+<p><b>The rule that protects the whole design:</b> <code>ui/core.zig</code> imports only
+<code>ui/command.zig</code> (plain data) and calls <em>no</em> SDL. Widgets sit on core; the backend and the
+Lua binding sit above; <code>main</code> wires them. So the entire UI computation can be lifted out and run
+headless on a server (Phase 3) without touching widget code. Files:
+<a href="../../src/ui/command.zig">command</a> ·
+<a href="../../src/ui/core.zig">core</a> ·
+<a href="../../src/ui/widgets.zig">widgets</a> ·
+<a href="../../src/ui/theme.zig">theme</a> ·
+<a href="../../src/render/sdl_backend.zig">sdl_backend</a> ·
+<a href="../../src/script/lua.zig">lua</a> ·
+<a href="../../src/main.zig">main</a>.</p>
+
+<!-- ============================================================ -->
+<h2 id="inspirations">19. Inspirations, similarities, specificities</h2>
+<table>
+  <tr><th>Source</th><th>What we took</th><th>How we differ</th></tr>
+  <tr><td><b>microui</b> (rxi)</td><td>Immediate-mode + a command buffer + row layout with width specs.</td><td>Reimplemented idiomatically in Zig; logic in Lua; designed for a socket split.</td></tr>
+  <tr><td><b>Dear ImGui</b> (ocornut)</td><td>The whole immediate-mode mental model; hot/active id interaction.</td><td>Far smaller; data-only command boundary; not C++/desktop-only.</td></tr>
+  <tr><td><b>egui</b> (Rust)</td><td>Confirmation that "UI = function emitting a serializable draw list" is a proven, cross-platform shape.</td><td>We own a minimal native core instead of adopting a framework.</td></tr>
+  <tr><td><b>Löve2D</b></td><td>Native engine + Lua scripts as the productive, hot-reloadable surface.</td><td>Immediate-mode <em>GUI</em> focus + the umbilical.</td></tr>
+  <tr><td><b>Handmade Hero</b></td><td>The discipline of owning the loop and the platform layer; hot-reload culture.</td><td>Scripted (Lua) reload instead of native <code>.so</code> reload.</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="roadmap">20. Roadmap</h2>
+<ol class="tight">
+  <li><span class="pill ok">done</span> <b>Phase 1</b> — native core: command buffer, layout, widgets, SDL backend, native demo.</li>
+  <li><span class="pill ok">done</span> <b>Phase 2</b> — Lua app logic + file-watch hot-reload + error guard.</li>
+  <li><span class="pill def">next</span> <b>Phase 3</b> — umbilical: <code>net/</code> (length-prefixed codec) + <code>Transport{Local,Tcp}</code>;
+  <b>logic-push first</b> (smallest, reuses hot-reload), remote-render later; desktop↔desktop, then VPS, then phone via <code>adb reverse</code>.</li>
+  <li><span class="pill def">later</span> <b>Phase 4</b> — Android: native host packaged with SDL3 (NDK + gradle shell + APK assets).</li>
+  <li><span class="pill def">later</span> Multi-session server, TLS/auth, scrolling/text-input widgets, declarative widget specs.</li>
+</ol>
+<p class="small">All additive on the same <code>frame</code>/command-buffer boundary and public widget API — not rewrites.</p>
+
+<!-- ============================================================ -->
+<h2 id="log">21. Decision log</h2>
+<p class="small">Append-only-ish: corrections keep the prior reasoning visible so the change is legible.</p>
+<table>
+  <tr><th>Date</th><th>Decision</th><th>Status</th></tr>
+  <tr><td>2026-05-29</td><td>Immediate-mode over retained-mode</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>Containers + row sizing specs for layout (microui-style)</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>Widgets are userland on a public API, not a fixed set</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>Native core in Zig (raw C interop, cross-compile) over C/Rust/Go/Odin</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>App logic in Lua (LuaJIT)</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td><s>No hot-reload in v1 (fast-restart only)</s> → <b>Lua hot-reload is in v1</b></td><td><span class="pill mut">mutated</span> → <span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>Umbilical generalized to UI-server↔UI-client (desktop/VPS/phone), transport optional</td><td><span class="pill def">deferred</span></td></tr>
+  <tr><td>2026-05-29</td><td>Two umbilical channels; logic-push to be built first</td><td><span class="pill def">deferred</span></td></tr>
+  <tr><td>2026-05-29</td><td>Config via <code>SDL_getenv</code> + file I/O via SDL (sidestep Zig 0.17 Io churn)</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>C interop via translate-c (<code>@cImport</code> removed in 0.17-dev)</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>Debugging: gdb (native) + LuaPanda (Lua, loopback, opt-in); statements on own line for breakpoints</td><td><span class="pill ok">tested</span></td></tr>
+  <tr><td>2026-05-29</td><td>Pre-commit gate: zig fmt + stylua + build + test; commit straight to main</td><td><span class="pill ok">tested</span></td></tr>
+</table>
+
+<hr>
+<p class="small">Generated alongside the codebase on 2026-05-29. Keep this file updated as decisions are
+discussed, developed, tested, tweaked, corrected, and mutated — that is its job.</p>
+</main>
+</div>
+</body>
+</html>
