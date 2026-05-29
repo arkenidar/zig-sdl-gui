@@ -195,8 +195,9 @@ If a row isn't declared, each widget gets its own full-width row.
 ## Architecture / source layout
 
 > **Deep dive:** a living design record — decisions (considered → chosen → why → status),
-> dynamics, schematics, inspirations, and a dated decision log — lives in
-> [docs/design/architecture.html](docs/design/architecture.html) (open in a browser).
+> dynamics, schematics, inspirations, and a dated decision log. Read it rendered at
+> **<https://arkenidar.github.io/zig-sdl-gui/design/architecture.html>**
+> (source: [docs/design/architecture.html](docs/design/architecture.html)).
 
 ```
 src/

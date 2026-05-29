@@ -152,7 +152,7 @@ the lore, the dynamics — captured as they are discussed, built, tested, and mu
   not yet built), or <span class="pill mut">mutated</span> (a prior decision that changed). New decisions
   get a row in the <a href="#log">Decision log</a> with a date. When something is corrected or mutated,
   the old reasoning stays (struck or noted) so the <em>why</em> of the change is legible later.
-  See also the user-facing <a href="../../README.md">README</a> and the source under <a href="../../src/">src/</a>.
+  See also the user-facing <a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/README.md">README</a> and the source under <a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/">src/</a>.
 </div>
 </section>
 
@@ -267,7 +267,7 @@ A row with no specs is one full-width column. Resolution happens once when the r
 </svg>
 </figure>
 <p class="how">See <code>beginRow()</code> / <code>next()</code> in
-<a href="../../src/ui/core.zig">src/ui/core.zig</a>. <span class="pill ok">tested</span></p>
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/ui/core.zig">src/ui/core.zig</a>. <span class="pill ok">tested</span></p>
 
 <!-- ============================================================ -->
 <h2 id="d-widgets">5. Decision — widgets are <em>userland</em>, not a fixed catalog</h2>
@@ -279,7 +279,7 @@ widgets. A "widget" is any function that uses three families of primitives:</p>
   <div class="card"><h4>Drawing</h4><code>drawRect/drawBorder/drawText/drawImage</code>, <code>measure()</code> — emit commands.</div>
   <div class="card"><h4>Composition</h4>Widgets call widgets. A custom one is ~10 lines, built from the same calls — in Zig <em>or</em> Lua.</div>
 </div>
-<p><a href="../../src/ui/widgets.zig">widgets.zig</a> holds <em>example</em> widgets
+<p><a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/ui/widgets.zig">widgets.zig</a> holds <em>example</em> widgets
 (<code>label/button/checkbox/slider</code>); nothing in <code>core/</code> or <code>render/</code> depends
 on them, so you replace or extend freely. Built-ins are not privileged.</p>
 <p class="why">"Flexibility is a must" — the user wanted definable/composable widgets, not pre-baked ones.
@@ -325,7 +325,7 @@ the native Zig core (SDL, command buffer, layout, widget primitives) is compiled
 <p class="why">It converts the hardest goal (live evolution) into the cheapest mechanism, and it
 <b>mutated a prior decision</b>: "no hot-reload in v1 / fast-restart only" became "Lua hot-reload <em>is</em>
 in v1" once Lua was chosen. <span class="pill mut">mutated</span> → <span class="pill ok">tested</span></p>
-<p class="how">Cost paid up front: a Zig↔LuaJIT binding (<a href="../../src/script/lua.zig">script/lua.zig</a>)
+<p class="how">Cost paid up front: a Zig↔LuaJIT binding (<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/script/lua.zig">script/lua.zig</a>)
 that reflects the widget API into a Lua <code>ui</code> table. Per-frame Lua is a non-issue for a widget UI
 (LuaJIT is fast; calls stay coarse).</p>
 <div class="lore"><b>Similar prior art:</b> game engines pairing a native core with Lua scripts; especially
@@ -346,7 +346,7 @@ that reflects the widget API into a Lua <code>ui</code> table. Per-frame Lua is 
 </div>
 <p class="small"><span class="pill def">deferred</span> — the <code>Transport</code>/<code>net/</code> layer
 is designed, not yet built (Phase 3). The <code>-Dnet</code> build option already exists in
-<a href="../../build.zig">build.zig</a> as the placeholder for this seam.</p>
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/build.zig">build.zig</a> as the placeholder for this seam.</p>
 
 <!-- ============================================================ -->
 <h2 id="d-umbilical">9. Two umbilical channels</h2>
@@ -448,7 +448,7 @@ held by a registry ref), so values like <code>count</code> survive an edit. A <c
 a syntax/runtime error into an on-screen message instead of a crash; fixing the file clears it.</p>
 <p class="how">Chunks load under an <code>@</code>-prefixed name so tracebacks and the Lua debugger resolve
 to the real path, not <code>[string&nbsp;"..."]</code>. See <code>loadFile</code>/<code>maybeReload</code> in
-<a href="../../src/script/lua.zig">script/lua.zig</a>.
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/script/lua.zig">script/lua.zig</a>.
 <span class="pill ok">tested</span> — verified by a unit test (edit→reload→new output; bad-edit→error view)
 <em>and</em> demonstrated live (editing a running window changed its title and added a button, state preserved).</p>
 
@@ -482,7 +482,7 @@ keeps each statement on its own line (stylua <code>collapse_simple_statement = "
 
 <!-- ============================================================ -->
 <h2 id="gate">16. Dynamics — the pre-commit gate</h2>
-<p>Enabled via <code>git config core.hooksPath .githooks</code>. On commit, <a href="../../.githooks/pre-commit">.githooks/pre-commit</a>:</p>
+<p>Enabled via <code>git config core.hooksPath .githooks</code>. On commit, <a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/.githooks/pre-commit">.githooks/pre-commit</a>:</p>
 <ol class="tight">
   <li>resolves <code>zig</code> (PATH or <code>~/apps/zig</code> — GUI git clients often lack PATH),</li>
   <li><b>autoformats</b> staged <code>.zig</code> (<code>zig fmt</code>) and staged <code>.lua</code>
@@ -498,7 +498,7 @@ keeps each statement on its own line (stylua <code>collapse_simple_statement = "
 <em>why</em> behind unusual choices is clear:</p>
 <table>
   <tr><th>Change in 0.17-dev</th><th>What we did</th></tr>
-  <tr><td><code>@cImport</code> removed</td><td>C interop via a build <b>translate-c</b> step over <a href="../../src/cdefs.h">src/cdefs.h</a> (SDL3 + ttf + image + LuaJIT in one module).</td></tr>
+  <tr><td><code>@cImport</code> removed</td><td>C interop via a build <b>translate-c</b> step over <a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/cdefs.h">src/cdefs.h</a> (SDL3 + ttf + image + LuaJIT in one module).</td></tr>
   <tr><td><code>std.ArrayList</code> is unmanaged</td><td>Buffers carry the allocator explicitly (<code>cmds.append(gpa, …)</code>); init via <code>.empty</code>.</td></tr>
   <tr><td>Build API: <code>createModule</code>/<code>root_module</code>; linking moved onto the module</td><td><code>mod.linkSystemLibrary(...)</code>; <code>addExecutable(.{ .root_module })</code>.</td></tr>
   <tr><td>std I/O + args mid-rework (<code>Io</code> param)</td><td>Config read via <code>SDL_getenv</code>; file I/O via SDL (<code>SDL_LoadFile</code>/<code>SDL_GetPathInfo</code>) — sidesteps the churn entirely.</td></tr>
@@ -536,13 +536,13 @@ wins are worth the churn for <em>this</em> project — but the churn is real and
 <code>ui/command.zig</code> (plain data) and calls <em>no</em> SDL. Widgets sit on core; the backend and the
 Lua binding sit above; <code>main</code> wires them. So the entire UI computation can be lifted out and run
 headless on a server (Phase 3) without touching widget code. Files:
-<a href="../../src/ui/command.zig">command</a> ·
-<a href="../../src/ui/core.zig">core</a> ·
-<a href="../../src/ui/widgets.zig">widgets</a> ·
-<a href="../../src/ui/theme.zig">theme</a> ·
-<a href="../../src/render/sdl_backend.zig">sdl_backend</a> ·
-<a href="../../src/script/lua.zig">lua</a> ·
-<a href="../../src/main.zig">main</a>.</p>
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/ui/command.zig">command</a> ·
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/ui/core.zig">core</a> ·
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/ui/widgets.zig">widgets</a> ·
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/ui/theme.zig">theme</a> ·
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/render/sdl_backend.zig">sdl_backend</a> ·
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/script/lua.zig">lua</a> ·
+<a href="https://github.com/arkenidar/zig-sdl-gui/blob/main/src/main.zig">main</a>.</p>
 
 <!-- ============================================================ -->
 <h2 id="inspirations">19. Inspirations, similarities, specificities</h2>
