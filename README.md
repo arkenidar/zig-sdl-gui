@@ -35,6 +35,17 @@ frame(state, input_events, ui) -> (state', command_buffer)
   (pkg-config names: `sdl3`, `sdl3-ttf`, `sdl3-image`, `luajit`).
 - A TTF font (defaults to DejaVuSans at `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`).
 
+The build commands below invoke `zig` from your `PATH`. If you unpacked the dev
+build to a custom directory (e.g. `~/apps/zig`, as on this Debian 13 setup), add it
+to `PATH` — and to `~/.bashrc` to make it permanent:
+
+```sh
+# add to ~/.bashrc, then `source ~/.bashrc` (or open a new terminal)
+export PATH="$HOME/apps/zig:$PATH"
+
+zig version   # -> 0.17.0-dev.389+...
+```
+
 ## Build & run
 
 ```sh
