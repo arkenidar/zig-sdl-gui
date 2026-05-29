@@ -208,7 +208,7 @@ On commit, `.githooks/pre-commit` runs:
 
 - **format** — `zig fmt` on staged `.zig`, `stylua` on staged `.lua` (the vendored
   `scripts/LuaPanda.lua` is excluded); reformatted files are re-staged. Lua style lives in
-  `.stylua.toml` (2-space, one-line conditionals kept).
+  `.stylua.toml` (2-space; statements kept on their own line so breakpoints can target them).
 - **check** — `zig build` then `zig build test`; a failure aborts the commit.
 
 It finds `zig` on PATH or at `~/apps/zig`, and `stylua` on PATH or at `~/.local/bin`

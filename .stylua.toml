@@ -1,7 +1,8 @@
-# Lua formatting (pre-commit gate; see .githooks/pre-commit). 2-space indent to
-# match the project's hand style; single-line `if … then … end` kept; the vendored
-# debugger is excluded via .styluaignore.
+# Lua formatting (pre-commit gate; see .githooks/pre-commit). 2-space indent to match
+# the project's hand style; statements kept on their own line (collapse = Never) so a
+# breakpoint can target a statement (e.g. the increment inside `if ui.button("+")`).
+# The vendored debugger is excluded via .styluaignore.
 indent_type = "Spaces"
 indent_width = 2
 call_parentheses = "NoSingleTable"
-collapse_simple_statement = "ConditionalOnly"
+collapse_simple_statement = "Never"
