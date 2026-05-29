@@ -112,6 +112,40 @@ If no listener is up, `ZIGUI_LUA_DEBUG=1` is a quiet no-op and the app runs norm
 only by design (remote/umbilical debugging is a later phase); stepping through Lua *tail calls*
 under LuaJIT can be imperfect — a known LuaPanda limitation.
 
+#### Worked example — break on the `+` button's increment
+
+With the **Lua: LuaPanda (listen 8818)** session running, launch the app so it connects out:
+
+```sh
+ZIGUI_LUA_DEBUG=1 zig build run
+```
+
+In `scripts/app.lua` the counter is bumped inside a guard:
+
+```lua
+if ui.button("+") then
+  s.count = s.count + 1   -- ← set the breakpoint on THIS line
+end
+```
+
+Set the breakpoint on the `s.count = s.count + 1` line and click **+** in the window — execution
+stops there; inspect `s` and `ui`, step, continue (the window resumes). Edit the script and it
+still hot-reloads mid-session.
+
+Break on the **statement**, not a one-line `if … then … end`: that `if` line runs *every frame*
+(the condition is polled each frame), so a breakpoint on it fires constantly. This is why the
+project keeps each statement on its own line — `.stylua.toml` sets
+`collapse_simple_statement = "Never"` (see [Pre-commit gate](#pre-commit-gate)), so the formatter
+and editor never collapse a guarded statement back onto the `if` line.
+
+#### Both debuggers at once
+
+The compound **Dual debug (Zig gdb + Lua LuaPanda)** starts the listener and the gdb session
+together (it sets `ZIGUI_LUA_DEBUG=1` for you): two concurrent sessions — native breakpoints in
+`src/*.zig` **and** Lua breakpoints in `scripts/app.lua`. Switch between them in the Call Stack
+panel. A gdb breakpoint halts the whole process; a LuaPanda breakpoint parks inside `frame()`, so
+gdb still shows the process as running while you're stopped in Lua.
+
 ## Writing UI (Lua)
 
 Edit `scripts/app.lua` **while the app is running** — it hot-reloads within a frame and your
