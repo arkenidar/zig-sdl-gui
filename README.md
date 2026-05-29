@@ -216,6 +216,11 @@ It finds `zig` on PATH or at `~/apps/zig`, and `stylua` on PATH or at `~/.local/
 `cargo install stylua`; if it's missing, the hook warns and skips Lua formatting rather than
 blocking).
 
+VS Code is set to match: `.vscode/settings.json` makes stylua the Lua formatter with
+format-on-save (install the
+[stylua extension](https://marketplace.visualstudio.com/items?itemName=JohnnyMorganz.stylua)),
+reading the same `.stylua.toml` — so on-save formatting equals the gate, no tug-of-war.
+
 ## Roadmap
 
 - **Phase 3 — Umbilical:** `net/` with a length-prefixed codec + `Transport { Local, Tcp }`;

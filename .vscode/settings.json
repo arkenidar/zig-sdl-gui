@@ -1,0 +1,11 @@
+{
+  // Lua: format with stylua — the same formatter and .stylua.toml the pre-commit
+  // gate uses — so the editor and the commit gate never disagree. Requires the
+  // JohnnyMorganz.stylua extension (the gate falls back to ~/.local/bin/stylua).
+  // To pin the exact binary the gate uses (zero version drift), also set:
+  //   "stylua.styluaPath": "/home/arkenidar/.local/bin/stylua"
+  "[lua]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua",
+    "editor.formatOnSave": true
+  }
+}
