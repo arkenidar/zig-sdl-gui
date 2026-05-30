@@ -29,7 +29,9 @@ frame(state, input_events, ui) -> (state', command_buffer)
 ## Requirements
 
 - **Zig 0.17.0-dev** (this targets the dev build's APIs: translate-c instead of `@cImport`,
-  unmanaged `ArrayList`, `createModule`/`root_module`).
+  unmanaged `ArrayList`, `createModule`/`root_module`). `build.zig.zon` pins
+  `minimum_zig_version` to the exact dev build (`0.17.0-dev.389+f5a1968f6`); older
+  nightlies are rejected when this package is consumed as a dependency.
 - System libraries (Debian/Ubuntu package names):
   `libsdl3-dev libsdl3-ttf-dev libsdl3-image-dev libluajit-5.1-dev`
   (pkg-config names: `sdl3`, `sdl3-ttf`, `sdl3-image`, `luajit`).
